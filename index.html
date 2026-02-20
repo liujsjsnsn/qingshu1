@@ -30,22 +30,19 @@
 
 </div>
 <script src="letter.js"></script>
-<!-- 添加移动设备音频激活脚本 -->
+<!-- 简化的移动端适配脚本 -->
 <script>
-// 移动设备音频激活
+// 简单的移动端适配，只用于确保页面可交互
 document.addEventListener('touchstart', function() {
-    if (window.audioInstance && audioInstance.readyState >= 1) {
-        // 如果音频已加载，尝试播放
-        audioInstance.play().catch(e => console.log('音频播放仍被阻止'));
-    }
+    console.log('移动设备已准备就绪');
 }, { once: true });
 
-// 为兼容性添加额外的激活方法
-document.addEventListener('click', function() {
-    if (window.audioInstance && audioInstance.readyState >= 1) {
-        audioInstance.play().catch(e => console.log('音频播放仍被阻止'));
+// 防止iOS Safari下拉露白
+document.body.addEventListener('touchmove', function(e) {
+    if (document.documentElement.scrollTop <= 0) {
+        e.preventDefault();
     }
-}, { once: true });
+}, { passive: false });
 </script>
 </body>
 </html>
