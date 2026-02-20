@@ -8,59 +8,78 @@ if (!heart || !card || !box) {
     console.error('必要的DOM元素未找到');
 }
 
-// 音频播放函数
+// 音频播放状态标志
+let isAudioPlaying = false;
+let audioInstance = null;
+
+// 初始化音频（只在需要时创建）
+function initAudio() {
+    if (!audioInstance) {
+        audioInstance = new Audio('qlx.mp3');
+        audioInstance.volume = 0.7;
+        audioInstance.loop = true; // 改为循环播放，让音乐持续
+        
+        // 添加音频错误处理
+        audioInstance.addEventListener('error', (e) => {
+            console.error('音频加载失败:', e);
+        });
+        
+        // 音频结束时重新播放（备用方案）
+        audioInstance.addEventListener('ended', () => {
+            if (isAudioPlaying) {
+                audioInstance.currentTime = 0;
+                audioInstance.play().catch(e => console.log('重播失败'));
+            }
+        });
+    }
+    return audioInstance;
+}
+
+// 播放音频函数（优化版）
 function playAudio() {
     try {
-        // 检查是否已有音频实例，如果没有则创建新的
-        if (typeof window.audioInstance === 'undefined') {
-            window.audioInstance = new Audio('qlx.mp3');
-            window.audioInstance.volume = 0.7; // 设置音量
-            window.audioInstance.loop = false; // 防止循环播放
-            
-            // 预加载音频
-            window.audioInstance.preload = 'auto';
+        const audio = initAudio();
+        
+        // 如果已经在播放，不要重复触发
+        if (isAudioPlaying) {
+            console.log('音频已在播放中');
+            return;
         }
         
-        // 尝试播放音频
-        const playPromise = window.audioInstance.play();
+        // 重置到开头
+        audio.currentTime = 0;
+        
+        // 播放音频
+        const playPromise = audio.play();
         
         if (playPromise !== undefined) {
-            playPromise.then(() => {
-                // 播放成功
-                console.log('音频播放成功');
-            }).catch(error => {
-                console.warn('音频播放失败，可能需要用户手势:', error);
-                
-                // 在移动设备上，可能需要用户交互才能播放音频
-                // 重新尝试播放
-                setTimeout(() => {
-                    if (window.audioInstance) {
-                        window.audioInstance.currentTime = 0; // 重置到开头
-                        window.audioInstance.play().then(() => {
-                            console.log('音频播放成功');
-                        }).catch(err => {
-                            console.warn('重试音频播放也失败:', err);
-                            
-                            // 尝试在用户交互后播放
-                            const tryPlayOnInteraction = () => {
-                                if (window.audioInstance) {
-                                    window.audioInstance.currentTime = 0; // 重置到开头
-                                    window.audioInstance.play().then(() => {
-                                        document.removeEventListener('touchstart', tryPlayOnInteraction);
-                                        document.removeEventListener('click', tryPlayOnInteraction);
-                                    }).catch(retryErr => {
-                                        console.warn('即使在交互后也无法播放音频:', retryErr);
-                                    });
-                                }
-                            };
-                            
-                            // 监听后续的用户交互
-                            document.addEventListener('touchstart', tryPlayOnInteraction);
-                            document.addEventListener('click', tryPlayOnInteraction);
-                        });
-                    }
-                }, 100);
-            });
+            playPromise
+                .then(() => {
+                    isAudioPlaying = true;
+                    console.log('音频播放成功，将持续播放');
+                })
+                .catch(error => {
+                    console.warn('音频播放失败:', error);
+                    isAudioPlaying = false;
+                    
+                    // 一次性设置用户交互监听
+                    const playOnInteraction = function() {
+                        if (!isAudioPlaying && audioInstance) {
+                            audioInstance.currentTime = 0;
+                            audioInstance.play()
+                                .then(() => {
+                                    isAudioPlaying = true;
+                                    console.log('用户交互后播放成功');
+                                })
+                                .catch(e => console.warn('交互后仍失败:', e));
+                        }
+                        document.removeEventListener('touchstart', playOnInteraction);
+                        document.removeEventListener('click', playOnInteraction);
+                    };
+                    
+                    document.addEventListener('touchstart', playOnInteraction);
+                    document.addEventListener('click', playOnInteraction);
+                });
         }
     } catch (error) {
         console.warn('音频初始化失败:', error);
@@ -70,27 +89,26 @@ function playAudio() {
 // 打字效果函数
 function startTypingEffect() {
     let i = 0;
-    const str = '写信真是一件温柔的事，细腻的小心思就藏在横竖撇捺之中，像是一只温顺的小兽<躲在情意绵绵的字里行间，被火燎封印起来，等着解封的那一刻窜出来，跳进启信人眼底的柔波里。<你一眨眼，<温驯的小鹿有跳动一下，<柔软的暖风有轻拂一下，<遥远的星星有闪烁一下，<我也有心动<却不止一下';
-    let strp = '';
+    const str = '写信真是一件温柔的事，细腻的小心思就藏在横竖撇捺之中，像是一只温顺的小兽躲在情意绵绵的字里行间，被火漆封印起来，等着解封的那一刻窜出来，跳进启信人眼底的柔波里。你一眨眼，温驯的小鹿就跳动一下，柔软的暖风就轻拂一下，遥远的星星就闪烁一下，而我，却心动不止一下';
     
     // 修复打字效果bug：使用更精确的定时器控制
     function print() {
         if (i >= str.length) {
             // 清除光标闪烁效果
-            box.innerHTML = strp;
+            box.innerHTML = str.replace(/</g, '&lt;').replace(/>/g, '&gt;'); // 防止HTML注入
             return;
         }
         
-        if(str[i] === '<') {
-            strp += "<br><br>";
-            box.innerHTML = strp + '|';
-        } else {
-            strp += str[i];
-            box.innerHTML = strp + '|';
-        }
+        let displayText = str.substring(0, i + 1);
+        // 将原始文本中的特殊字符显示为普通文本
+        displayText = displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        box.innerHTML = displayText + '|';
         
         i++;
     }
+    
+    // 清空box内容
+    box.innerHTML = '';
     
     // 使用更稳定的定时器
     setTimeout(() => {
@@ -98,9 +116,13 @@ function startTypingEffect() {
             print();
             if(i >= str.length) {
                 clearInterval(printInterval);
+                // 移除光标
+                setTimeout(() => {
+                    box.innerHTML = str.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }, 500);
             }
-        }, 150); // 调整为150毫秒，更流畅
-    }, 5500);
+        }, 120); // 调整速度
+    }, 500);
 }
 
 // 背景显示函数
@@ -112,7 +134,14 @@ function appearBackground() {
 }
 
 // 主要点击事件处理
-heart.addEventListener('click', function() {
+heart.addEventListener('click', function(e) {
+    // 阻止事件冒泡和重复触发
+    e.stopPropagation();
+    
+    // 如果已经触发过，不再重复执行（防止多次点击）
+    if (this.disabled) return;
+    this.disabled = true;
+    
     try {
         // 添加点击反馈
         this.style.transform = 'rotate(45deg) translateX(-70%) scale(0.9)';
@@ -123,6 +152,7 @@ heart.addEventListener('click', function() {
         // 淡出卡片
         card.style.opacity = '0';
         card.style.transform = 'scale(0.8)';
+        card.style.transition = 'opacity 0.5s, transform 0.5s';
         
         // 播放音频
         playAudio();
@@ -135,12 +165,13 @@ heart.addEventListener('click', function() {
         
     } catch (error) {
         console.error('点击事件处理出错:', error);
+        this.disabled = false; // 出错时恢复点击能力
     }
 });
 
 // 添加键盘支持
 document.addEventListener('keydown', function(event) {
-    if (event.code === 'Space' || event.code === 'Enter') {
+    if ((event.code === 'Space' || event.code === 'Enter') && !heart.disabled) {
         event.preventDefault();
         heart.click();
     }
@@ -150,10 +181,10 @@ document.addEventListener('keydown', function(event) {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('情书页面加载完成');
     
-    // 预加载音频
-    if (typeof window.audioInstance === 'undefined') {
-        window.audioInstance = new Audio('qlx.mp3');
-        window.audioInstance.preload = 'auto';
-        window.audioInstance.load();
-    }
+    // 预加载音频但不播放
+    initAudio();
+    
+    // 移除HTML中的全局音频激活脚本的干扰
+    // （通过在JS中覆盖全局变量方式）
+    window.audioInstance = audioInstance;
 });
