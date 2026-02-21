@@ -183,7 +183,7 @@ body {
     top: 0;
     z-index: -200;
     opacity: 0;
-    color: #00ffd1;
+    color: #facaf1;
     padding: 10vh 5vw;
     width: 100vw;
     height: 100vh;
@@ -268,3 +268,4 @@ body {
         transition-duration: 0.01ms !important;
     }
 }
+
